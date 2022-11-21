@@ -393,11 +393,14 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 		newArg = append(newArg, args[2:]...)
 		args = newArg
 	}
+	var internalLabels internalLabels
+	internalLabels.platform = platform
 
 	ns, err := cmd.Flags().GetString("namespace")
 	if err != nil {
 		return nil, nil, err
 	}
+	internalLabels.namespace = ns
 
 	var (
 		opts  []oci.SpecOpts
@@ -427,12 +430,12 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 	if err := os.MkdirAll(stateDir, 0700); err != nil {
 		return nil, nil, err
 	}
+	internalLabels.stateDir = stateDir
 
 	opts = append(opts,
 		oci.WithDefaultSpec(),
 	)
 
-	var internalLabels internalLabels
 	opts, internalLabels, err = setPlatformOptions(ctx, opts, cmd, client, id, internalLabels)
 	if err != nil {
 		return nil, nil, err
@@ -496,7 +499,10 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 	mountOpts, anonVolumes, mountPoints, err := generateMountOpts(ctx, cmd, client, ensuredImage)
 	if err != nil {
 		return nil, nil, err
+		opts = append(opts, mountOpts...)
 	}
+	internalLabels.anonVolumes = anonVolumes
+	internalLabels.mountPoints = mountPoints
 	opts = append(opts, mountOpts...)
 
 	var logURI string
@@ -543,6 +549,7 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 			}
 		}
 	}
+	internalLabels.logURI = logURI
 
 	restartValue, err := cmd.Flags().GetString("restart")
 	if err != nil {
@@ -573,6 +580,7 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 		hostname = customHostname
 	}
 	opts = append(opts, oci.WithHostname(hostname))
+	internalLabels.hostname = hostname
 	// `/etc/hostname` does not exist on FreeBSD
 	if runtime.GOOS == "linux" {
 		hostnamePath := filepath.Join(stateDir, "hostname")
@@ -586,6 +594,10 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 	if err != nil {
 		return nil, nil, err
 	}
+	internalLabels.networks = netSlice
+	internalLabels.ipAddress = ipAddress
+	internalLabels.ports = ports
+	internalLabels.macAddress = macAddress
 	opts = append(opts, netOpts...)
 
 	hookOpt, err := withNerdctlOCIHook(cmd, id)
@@ -646,6 +658,7 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 			return nil, nil, err
 		}
 	}
+	internalLabels.name = name
 
 	var pidFile string
 	if cmd.Flags().Lookup("pidfile").Changed {
@@ -654,6 +667,7 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 			return nil, nil, err
 		}
 	}
+	internalLabels.pidFile = pidFile
 
 	extraHosts, err := cmd.Flags().GetStringSlice("add-host")
 	if err != nil {
@@ -665,20 +679,7 @@ func createContainer(ctx context.Context, cmd *cobra.Command, client *containerd
 			return nil, nil, err
 		}
 	}
-	internalLabels.namespace = ns
-	internalLabels.name = name
-	internalLabels.hostname = hostname
-	internalLabels.stateDir = stateDir
 	internalLabels.extraHosts = extraHosts
-	internalLabels.networks = netSlice
-	internalLabels.ipAddress = ipAddress
-	internalLabels.ports = ports
-	internalLabels.logURI = logURI
-	internalLabels.anonVolumes = anonVolumes
-	internalLabels.pidFile = pidFile
-	internalLabels.platform = platform
-	internalLabels.mountPoints = mountPoints
-	internalLabels.macAddress = macAddress
 
 	ilOpt, err := withInternalLabels(internalLabels)
 	if err != nil {
