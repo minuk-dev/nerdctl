@@ -138,6 +138,13 @@ func EnsureImage(ctx context.Context, client *containerd.Client, stdout, stderr 
 		dOpts = append(dOpts, dockerconfigresolver.WithSkipVerifyCerts(true))
 	}
 	dOpts = append(dOpts, dockerconfigresolver.WithHostsDirs(hostsDirs))
+	authCreds, err := dockerconfigresolver.NewAuthCreds(refDomain)
+	if err != nil {
+		log.G(ctx).WithError(err).Warnf("failed to get auth creds for %q", refDomain)
+	}
+	if authCreds != nil {
+		dOpts = append(dOpts, dockerconfigresolver.WithAuthCreds(authCreds))
+	}
 	resolver, err := dockerconfigresolver.New(ctx, refDomain, dOpts...)
 	if err != nil {
 		return nil, err
@@ -181,6 +188,16 @@ func ResolveDigest(ctx context.Context, rawRef string, insecure bool, hostsDirs 
 		dOpts = append(dOpts, dockerconfigresolver.WithSkipVerifyCerts(true))
 	}
 	dOpts = append(dOpts, dockerconfigresolver.WithHostsDirs(hostsDirs))
+	if err != nil {
+		log.G(ctx).WithError(err).Warnf("failed to get auth creds for %q", refDomain)
+	}
+	authCreds, err := dockerconfigresolver.NewAuthCreds(refDomain)
+	if err != nil {
+		log.G(ctx).WithError(err).Warnf("failed to get auth creds for %q", refDomain)
+	}
+	if authCreds != nil {
+		dOpts = append(dOpts, dockerconfigresolver.WithAuthCreds(authCreds))
+	}
 	resolver, err := dockerconfigresolver.New(ctx, refDomain, dOpts...)
 	if err != nil {
 		return "", err
