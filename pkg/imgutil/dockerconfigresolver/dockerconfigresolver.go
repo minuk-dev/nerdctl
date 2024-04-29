@@ -110,15 +110,36 @@ func NewHostOptions(ctx context.Context, refHostname string, optFuncs ...Opt) (*
 		return "", nil
 	}
 
+	fmt.Printf("minuk - o.authCreds: %v\n", o.authCreds)
 	if o.authCreds != nil {
 		ho.Credentials = o.authCreds
 	} else {
-		authCreds, err := NewAuthCreds(refHostname)
+		targetHostname := refHostname
+		if ho.HostDir != nil {
+			t, err := ho.HostDir(refHostname)
+			if err != nil {
+				return nil, err
+			}
+			if t != "" {
+				targetHostname = t
+			}
+		}
+		fmt.Println("minuk - targetHostname: ", targetHostname)
+		authCreds, err := NewAuthCreds(targetHostname)
 		if err != nil {
 			return nil, err
 		}
 		ho.Credentials = authCreds
+	}
+	fmt.Printf("minuk - ho.Credentials: %v\n", ho.Credentials)
+	if ho.Credentials != nil {
+		cred := ho.Credentials
+		ho.Credentials = func(s string) (string, string, error) {
+			a, b, c := cred(s)
+			fmt.Printf("minuk - s: %v, a: %v, b: %v, c: %v\n", s, a, b, c)
 
+			return a, b, c
+		}
 	}
 
 	if o.skipVerifyCerts {

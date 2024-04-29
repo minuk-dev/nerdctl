@@ -197,3 +197,43 @@ func TestPullSoci(t *testing.T) {
 		})
 	}
 }
+
+func TestPullWithMirror(t *testing.T) {
+	testutil.RequiresBuild(t)
+	testutil.DockerIncompatible(t)
+
+	base := testutil.NewBase(t)
+	reg := testregistry.NewHTTPS(base, "admin", "badmin")
+	mirrorServer := "foo.bar"
+	defer reg.Cleanup()
+
+	base.Cmd("--hosts-dir", reg.HostsDir, "login", "-u", "admin", "-p", "badmin", fmt.Sprintf("%s:%d", reg.IP.String(), reg.ListenPort)).AssertOK()
+
+	// fmt.Printf("\n\nminuk - pull execution\n\n")
+	base.Cmd("pull", testutil.CommonImage).AssertOK()
+	testImageRef := fmt.Sprintf("%s/%s:%s",
+		mirrorServer, testutil.Identifier(t), strings.Split(testutil.CommonImage, ":")[1])
+	t.Logf("testImageRef=%q", testImageRef)
+	//fmt.Printf("\n\nminuk - tag execution\n\n")
+	base.Cmd("tag", testutil.CommonImage, testImageRef).AssertOK()
+
+	hostsDir, err := os.MkdirTemp(t.TempDir(), "certs.d")
+	assert.NilError(t, err)
+	hostsSubDir := filepath.Join(hostsDir, mirrorServer)
+	err = os.MkdirAll(hostsSubDir, 0700)
+	assert.NilError(t, err)
+	hostsTOMLPath := filepath.Join(hostsSubDir, "hosts.toml")
+	t.Logf("hostsTOMLPath=%q", hostsTOMLPath)
+	hostsTOML := fmt.Sprintf(`
+server = "https://%s"
+
+[host."https://%s:%d/v2/%s"]
+  capabilities = ["push", "pull", "resolve"]
+  skip_verify = true
+`, mirrorServer, reg.IP.String(), reg.ListenPort, mirrorServer)
+	err = os.WriteFile(hostsTOMLPath, []byte(hostsTOML), 0600)
+	assert.NilError(t, err)
+
+	// fmt.Printf("\n\nminuk - push execution\n\n")
+	base.Cmd("--debug-full", "--hosts-dir", hostsDir, "push", testImageRef).AssertOK()
+}
